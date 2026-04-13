@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="app">
+
+    <div class="header">
+        <h1>🧠 DermVision AI Scanner</h1>
+        <p>Upload or capture an image to analyze</p>
+    </div>
+
+    <div class="card">
+
+        <div id="slot" class="slot active">
+            <span class="badge" id="modeLabel">No image</span>
+
+            <img id="preview" />
+            <video id="video" autoplay playsinline style="display:none;"></video>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/*">
+
+        <div class="row">
+            <button class="secondary" onclick="document.getElementById('fileInput').click()">
+                Upload
+            </button>
+
+            <button class="secondary" onclick="startCamera()">
+                Camera
+            </button>
+
+            <button class="primary" onclick="capture()">
+                Capture
+            </button>
+        </div>
+
+        <div class="row">
+            <button class="primary" onclick="predict()">
+                Analyze
+            </button>
+        </div>
+
+    </div>
+
+    <div class="result" id="result">
+        <h2>Result</h2>
+        <div class="conf">No prediction yet</div>
+    </div>
+
+</div>
+
+<script>
+let selectedFile = null;
+
+const slot = document.getElementById("slot");
+const preview = document.getElementById("preview");
+const video = document.getElementById("video");
+const modeLabel = document.getElementById("modeLabel");
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    selectedFile = file;
+
+    preview.src = URL.createObjectURL(file);
+
+    video.style.display = "none";
+    preview.style.display = "block";
+
+    slot.classList.add("active");
+    modeLabel.innerText = "Upload Image";
+});
+
+async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
+    video.srcObject = stream;
+
+    video.style.display = "block";
+    preview.style.display = "none";
+
+    slot.classList.add("active");
+    modeLabel.innerText = "Live Camera";
+}
+
+function capture() {
+    const canvas = document.createElement("canvas");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob((blob) => {
+        selectedFile = new File([blob], "capture.jpg", { type: "image/jpeg" });
+
+        preview.src = URL.createObjectURL(blob);
+
+        video.style.display = "none";
+        preview.style.display = "block";
+
+        slot.classList.add("active");
+        modeLabel.innerText = "Captured Image";
+    }, "image/jpeg");
+}
+
+async function predict() {
+    if (!selectedFile) return alert("No image selected");
+
+    document.getElementById("result").innerHTML = `
+        <h2>Analyzing...</h2>
+        <div class="conf">Please wait</div>
+    `;
+
+    const fd = new FormData();
+    fd.append("file", selectedFile);
+
+    const res = await fetch("/api/predict", {
+        method: "POST",
+        body: fd
+    });
+
+    const data = await res.json();
+
+    document.getElementById("result").innerHTML = `
+        <h2>${data.class}</h2>
+        <div class="conf">Confidence: ${(data.confidence * 100).toFixed(2)}%</div>
+    `;
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skin AI Chat</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b0f1a;
+    color: white;
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 25px;
+    background: #11182a;
+}
+
+.navbar a {
+    color: white;
+    margin-left: 15px;
+    text-decoration: none;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    padding: 20px;
+}
+
+.chat-box {
+    height: 65vh;
+    overflow-y: auto;
+    background: #121a2f;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.msg {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.user { background: #2b6cff; text-align: right; }
+.bot { background: #1f2a44; }
+
+.input-row {
+    display: flex;
+    margin-top: 15px;
+}
+
+input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+}
+
+button {
+    margin-left: 10px;
+    padding: 12px 14px;
+    border: none;
+    border-radius: 10px;
+    background: #2b6cff;
+    color: white;
+    cursor: pointer;
+}
+
+.voice {
+    background: #00c2ff;
+}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+    <div><b>Skin AI Chat</b></div>
+    <div>
+        <a href="/">Predict</a>
+        <a href="/chat">Chat</a>
+        <a href="/gradcam">GradCAM</a>
+    </div>
+</div>
+
+<div class="container">
+
+<div id="chat" class="chat-box"></div>
+
+<div class="input-row">
+    <input id="message" placeholder="Ask something..." />
+    <button onclick="sendMessage()">Send</button>
+    <button class="voice" onclick="startListening()">🎤</button>
+</div>
+
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+
+function addMsg(text, type) {
+    const div = document.createElement("div");
+    div.className = "msg " + type;
+    div.innerText = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = document.getElementById("message");
+    const msg = input.value.trim();
+
+    if (!msg) return;
+
+    addMsg(msg, "user");
+    input.value = "";
+
+    const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({message: msg})
+    });
+
+    const data = await res.json();
+
+    const reply = data.reply || "No response";
+
+    addMsg(reply, "bot");
+
+    await speak(reply);
+}
+
+/* ---------------- FIXED TTS ---------------- */
+async function speak(text) {
+    const chunks = text.match(/[^.!?]+[.!?]+/g) || [text];
+
+    let nextAudio = null;
+
+    async function fetchAudio(chunk) {
+        const res = await fetch("/api/tts", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ chunk })
+        });
+
+        const data = await res.json();
+        if (!data.audio) return null;
+
+        return new Audio("data:audio/mp3;base64," + data.audio);
+    }
+
+    // preload first
+    nextAudio = await fetchAudio(chunks[0]);
+
+    for (let i = 0; i < chunks.length; i++) {
+        const currentAudio = nextAudio;
+
+        // preload next while current is playing
+        nextAudio = (i + 1 < chunks.length)
+            ? fetchAudio(chunks[i + 1])
+            : null;
+
+        if (!currentAudio) continue;
+
+        currentAudio.play();
+
+        await new Promise(resolve => {
+            currentAudio.onended = resolve;
+        });
+
+        // wait for preload promise if needed
+        if (nextAudio && nextAudio.then) {
+            nextAudio = await nextAudio;
+        }
+    }
+}
+/* ---------------- MIC ---------------- */
+function startListening() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        alert("Speech recognition not supported");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    recognition.start();
+
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        document.getElementById("message").value = text;
+        sendMessage();
+    };
+}
+    window.onload = async () => {
+    const welcome = "Hi! I am your DermVision AI assistant. Ask me anything.";
+
+    addMsg(welcome, "bot");
+
+    // OPTIONAL: make it speak on load
+    if (typeof speak === "function") {
+        speak(welcome);
+    }
+};
+</script>
+
+</body>
+</html>

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="header">
+    <h1>GradCAM Visualizer</h1>
+    <p>See what the model is focusing on</p>
+</div>
+
+<div class="card">
+
+    <div class="slot">
+        <img id="preview">
+        <video id="video" autoplay playsinline style="display:none;"></video>
+        <span class="badge">Input</span>
+    </div>
+
+    <input type="file" id="fileInput">
+
+    <div class="row">
+        <button onclick="document.getElementById('fileInput').click()">Upload</button>
+        <button onclick="startCamera()">Camera</button>
+        <button onclick="capture()" class="primary">Capture</button>
+    </div>
+
+    <div class="row">
+        <button class="primary" onclick="run()">Generate Heatmap</button>
+    </div>
+
+</div>
+
+<div class="card">
+    <h3>Output</h3>
+    <img id="out">
+    <div id="txt" class="conf">No result</div>
+</div>
+
+<script>
+let file = null;
+
+const preview = document.getElementById("preview");
+const video = document.getElementById("video");
+const out = document.getElementById("out");
+
+document.getElementById("fileInput").addEventListener("change", e => {
+    file = e.target.files[0];
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = "block";
+});
+
+async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    video.style.display = "block";
+    preview.style.display = "none";
+}
+
+function capture() {
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+
+    c.getContext("2d").drawImage(video, 0, 0);
+
+    c.toBlob(b => {
+        file = new File([b], "cam.jpg");
+        preview.src = URL.createObjectURL(b);
+        preview.style.display = "block";
+        video.style.display = "none";
+    });
+}
+
+async function run() {
+    if (!file) return alert("No image");
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch("/api/gradcam", {
+        method: "POST",
+        body: fd
+    });
+
+    const data = await res.json();
+
+    out.src = "data:image/jpeg;base64," + data.heatmap;
+    document.getElementById("txt").innerText =
+        `${data.class} (${(data.confidence*100).toFixed(2)}%)`;
+}
+</script>
+
+{% endblock %}

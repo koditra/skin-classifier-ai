@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>🧠 Skin AI Assistant</h1>
+<p>Chat with AI or go to Predict for diagnosis</p>
+
+<div class="card">
+    <h2>💬 AI Chat</h2>
+
+    <div id="chatbox" style="height:300px; overflow-y:auto;"></div>
+
+    <input id="msg" placeholder="Ask something..." style="width:70%;">
+    <button onclick="send()">Send</button>
+</div>
+
+<script>
+async function send() {
+    const msg = document.getElementById("msg").value;
+
+    if (!msg) return;
+
+    const res = await fetch("/chat", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: msg })
+    });
+
+    const data = await res.json();
+
+    const box = document.getElementById("chatbox");
+
+    box.innerHTML += `
+        <p><b>You:</b> ${msg}</p>
+        <p><b>AI:</b> ${data.reply}</p>
+        <hr>
+    `;
+
+    document.getElementById("msg").value = "";
+    box.scrollTop = box.scrollHeight;
+}
+</script>
+
+{% endblock %}
