@@ -37,9 +37,6 @@ This project combines:
 
 ### AI / ML
 - PyTorch
-- Torchvision
-- OpenCV
-- NumPy
 
 ### APIs
 - OpenAI API
